@@ -1,59 +1,68 @@
 <?
-session_start() ;
 /* PHP external files */
 require_once('/home/sterlid2/Private/sysNotification.php');
-require_once('functions.php');
+require_once('/home/sterlid2/Private/userbase.php');
+
+/* Force https connection */
+forceHTTPS();
+
+/* Check if the user is logged in already */
+session_start();
+if (!checkIfLoggedIn() || !isClient()) {
+    header("Location: signin.php");
+    die();
+}
+
+/* Check if the user has been inactive */
+if (checkInactive()) {
+    header("Location: requests/signout.php");
+    die();
+}
 
 /* Temp Variables */
 $user = "User"; // Taken from DB, user account name
 $totalAssets = "0.00"; // Sum of all of users' accounts
 $lastVisit = date("F j, Y, g:i a"); // Last time of login
-//$accounts = ["Checking", "Savings", "Account 3", "Account 4", "Account 5"]; // User Account names taken from DB
+$accounts = ["Checking", "Savings", "Account 3", "Account 4", "Account 5"]; // User Account names taken from DB
 
 /* Main Variables */
-
-//$db creates a connection to the main database
-@ $db = DBconnect();
-//this block queries for the number of total account a client has
-$query = 'select count(*) as Total from accountDirectory';
-$result = $db->query($query);
-$row = mysqli_fetch_object($result) ;
-
-$amountOfAccounts = $row->Total; // This 'Total' variable is taken from the DB (Total amount of accounts the client has)
+$amountOfAccounts = 5; // This variable will be taken from the DB (Total amount of accounts the user has)
 $amountOfTransactions = 5; // Number of recent transactions to show
 ?>
 
 <!DOCTYPE html>
 <html lang="en-US">
 	<head>
-		<title>Home</title>
-		<link rel="stylesheet" href="/~sterlid2/TemporaryBank/web/CSS/stylesheet.css"> <!-- Stylesheet -->
-        <link rel="preconnect" href="https://fonts.googleapis.com"> <!-- Google Font -->
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin> <!-- Google Font -->
-        <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;1,100&display=swap" rel="stylesheet"> <!-- Google Font -->
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css"> <!-- Svg Icons -->
-		<meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Different screen size scaling compatability -->
+	<title>Home</title>
+	<!-- Stylesheet -->
+	<link rel="stylesheet" href="CSS/stylesheet.css">
+	<!-- Favicon -->
+	<link rel="icon" href="Images/logo.ico">
+	<!-- Google Font -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <!-- Google Font -->
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <!-- Google Font -->
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;1,100&display=swap" rel="stylesheet">
+        <!-- Svg Icons -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css">
+        <!-- Different screen size scaling compatability -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	</head>
 	<body>
 		<nav class="menubar">
 			<ul class="menugroup">
-				<li class="menulogo"><a href="/~sterlid2/bank/home.php">TempBank</a></li>
+				<li class="menulogo"><a href="home.php">Goldman Stacks</a></li>
                 <li class="menutoggle"><a href="#"><i class="fas fa-bars"></i></a></li>
-				<li class="menuitem"><a href="/~sterlid2/bank/home.php">Home</a></li>
-				<li class="menuitem"><a href="/~sterlid2/bank/account/transfer.php">Transfer</a></li>
-				<li class="menuitem"><a href="/~sterlid2/bank/account/payments.php">Payments</a></li>
-				<li class="menuitem"><a href="/~sterlid2/bank/account/open.php">Open New Account</a></li>
-				<li class="menuitem submenu">
-				    <a tabindex="0">Statements</a>
-				    <!--<ul class="submenugroup">
-				        <li class="subitem"><a href="#PrintAll">Print Statement</a></li>
-				        <li class="subitem"><a href="#PrintOne">Print Specific</a></li>
-				    </ul>-->
-				</li>
+				<li class="menuitem"><a href="home.php">Home</a></li>
+				<li class="menuitem"><a href="account/transfer.php">Transfer</a></li>
+				<li class="menuitem"><a href="account/payments.php">Payments</a></li>
+				<li class="menuitem"><a href="account/open.php">Open New Account</a></li>
+				<li class="menuitem"><a href="account/statement.php">Statement</a></li>
 			</ul>
 			<ul class="menugroup">
-				<li class="menuitem"><a href="/~sterlid2/bank/user/options.php">Options</a></li>
-				<li class="menuitem"><a href="/~sterlid2/bank/login.php">Sign Out</a></li>
+				<li class="menuitem"><a href="user/options.php">Options</a></li>
+				<li class="menuitem"><a href="requests/signout.php">Sign Out</a></li>
 			</ul>
 		</nav>
 		<? notification(); ?>
@@ -62,7 +71,7 @@ $amountOfTransactions = 5; // Number of recent transactions to show
 		        <h2 id="title">Welcome, <? echo $user ?></h2>
 		        <div class="split">
 		            <label class="info">Available Accounts</label>
-		            <a href="/~sterlid2/bank/account/open.php" class="expand-button transform-button extend-left round shadow">
+		            <a href="account/open.php" class="expand-button transform-button extend-left round shadow">
 		                <div class="split">
 		                    <div class="animate-left">
             		            <div class="toggle-button">
@@ -74,43 +83,16 @@ $amountOfTransactions = 5; // Number of recent transactions to show
 		            </a>
 		        </div>
 		        <?
-	        	$accounts = []; // User Account numbers taken from DB
-	        	$accounts_Names = []; // User Account names taken from DB
-	        	$accounts_Balance = []; //balance for each account of the client. the indexes correspond to the index of accounts[] and accounts_Balance[]
-                //$query = 'select accountType from accountDirectory where clientID=123456';
-                $total_balance = 0;
-                $query = 'select * from accountDirectory where clientID=123456';
-                $result = $db->query($query);
-                $rows = $result->fetch_all(MYSQLI_ASSOC);
-                foreach($rows as $acc) {
-                    $accounts[] = $acc['accountNum'];
-                    $accounts_Names[] = $acc['accountType'];
-                    
-                }
 	            for ($i = 0; $i < $amountOfAccounts; $i++) {
-	               
-	                $BalanceQuery = 'select balance from '.$accounts_Names[$i].' where accountNum='.$accounts[$i];
-                    $BalanceQueryResult = $db->query($BalanceQuery);
-                    //$Balance = fetch_object()->balance;
-                    $Balance = mysqli_fetch_object($BalanceQueryResult);
-                    if($accounts_Names[$i]=='credit'){
-                        $total_balance -= $Balance->balance;
-                        $account_message = "Credit Used";
-                    } else{
-                        $total_balance += $Balance->balance;
-                        $account_message = "Available";
-                    }
-                    
-                    $acc_num=substr($accounts[$i], -4);
-		            echo "<a href=\"/~castilg1/Software Engineering 2/details.php?acc=".$accounts_Names[$i]."&num=".$acc_num."\" class=\"big-color-button transform-button split round shadow\">
+		            echo "<a href=\"account/details.php?acc=".$accounts[$i]."\" class=\"big-color-button transform-button split round shadow\">
                             <div class=\"list\">
-            		            <p class=\"focused-info\">$accounts_Names[$i]</p>
-            		            <p>$accounts_Names[$i] account (*".substr($accounts[$i], -4).")</p>
+            		            <p class=\"focused-info\">$accounts[$i]</p>
+            		            <p>Savings Account (*".(1028+$i*402+$i*433).")</p>
         		            </div>
         		            <div class=\"split animate-left\">
             		            <div class=\"list text-right\">
-            		                <p>".$account_message."</p>
-                		            <p class=\"focused-info\">\$".$Balance->balance."</p>
+            		                <p>Available</p>
+                		            <p class=\"focused-info\">\$0.00</p>
             		            </div>
             		            <div class=\"toggle-button\">
             		                <i class=\"fas fa-chevron-right\"></i>
@@ -124,10 +106,32 @@ $amountOfTransactions = 5; // Number of recent transactions to show
 		        <div class="container round shadow">
     		        <div class="item-banner top-round">
     		            <!--<label class="banner-text">Account Details</label>-->
-    		            <h2 class="big text-center">Total Balance: $<?php echo $total_balance ?></h2>
+    		            <h2 class="big text-center">Total Balance: $<? echo $totalAssets ?></h2>
     		        </div>
     		        <div class="item-content bottom-round">
     		            <p class="info text-center">Last Sign In: <? echo $lastVisit ?></p>
+    		            <hr>
+                        <a href="account/funds.php" class="highlight-button transform-button split round">
+                            <div class="list">
+                                <p><i class="fas fa-plus icon"></i> Deposit Funds</p>
+                            </div>
+                            <div class="animate-left">
+                	            <div class="toggle-button">
+                	                <i class="fas fa-chevron-right"></i>
+                	            </div>
+                            </div>
+                        </a>
+                        <hr>
+                        <a href="account/funds.php?v=withdraw" class="highlight-button transform-button split round">
+                            <div class="list">
+                                <p><i class="fas fa-minus icon"></i> Withdraw Funds</p>
+                            </div>
+                            <div class="animate-left">
+                	            <div class="toggle-button">
+                	                <i class="fas fa-chevron-right"></i>
+                	            </div>
+                            </div>
+                        </a>
     		        </div>
     		    </div>
 		        <div class="container round shadow">
@@ -136,30 +140,16 @@ $amountOfTransactions = 5; // Number of recent transactions to show
     		        </div>
     		        <div class="item-content bottom-round">
     		            <?
-    		            
     		            $recentAccount = "Checking"; // temp
-    		            
-    		            $transTime = [];
-    		            $transAmount = [];
-    		            
-    		            $transactionQuery = "SELECT * FROM transactions WHERE clientID=123456 limit ".$amountOfTransactions;
-    		            $result = $db->query($transactionQuery);
-                        $rows = $result->fetch_all(MYSQLI_ASSOC);
-                        foreach($rows as $transaction) {
-                            $transTime[] = $transaction['transactionTime'];
-                            $transAmount[] = $transaction['transactionAmount'];
-                        }
-                        
 		                for ($n = 1; $n <= $amountOfTransactions; $n++) {
-		                    $index=$n-1;
-		                    echo "<a href=\"/~castilg1/Software Engineering 2/details.php?acc=".$recentAccount."\" class=\"highlight-button transform-button split round\">
+		                    echo "<a href=\"account/details.php?acc=".$recentAccount."\" class=\"highlight-button transform-button split round\">
 		                            <div class=\"list-padded\">
 		                                <h3 class=\"bold\">Transaction $n</h3>
-		                                <p>$transTime[$index]<p>
+		                                <p>$lastVisit<p>
 		                            </div>
 		                            <div class=\"split animate-left\">
 		                                <div class=\"list-padded text-right\">
-		                                    <h3>$transAmount[$index]</h3>
+		                                    <h3>-/+$.00</h3>
 		                                    <p>Payment</p>
 		                                </div>
                        		            <div class=\"toggle-button\">
@@ -223,11 +213,8 @@ $amountOfTransactions = 5; // Number of recent transactions to show
 		    </div>
 		</div>
 	</body>
-	<script type="text/javascript" src="/~sterlid2/bank/Scripts/navigation.js">
+	<script type="text/javascript" src="Scripts/navigation.js">
 	</script>
-	<script type="text/javascript" src="/~sterlid2/bank/Scripts/post.js">
+	<script type="text/javascript" src="Scripts/post.js">
 	</script>
-	<?php
-	    $db -> close();
-	?>
 </html>
